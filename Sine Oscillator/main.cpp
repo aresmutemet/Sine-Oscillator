@@ -21,6 +21,8 @@ using namespace std;
 class SineOsc {
     public :
     SineOsc ( double sampleRate , double amplitude , double phase) {
+        
+//        Set the time step, amplitude and phase of oscillator
         mTs = 1 / sampleRate;
         mAmp = amplitude;
         mPhase = phase;
@@ -34,6 +36,52 @@ private:
     double mTs;
     double mAmp;
     double mPhase;
+};
+
+/*
+ Butterworth filter Transfer Function
+ :
+                B0 + B1*z^(-1) + B2*z^(-2)
+ H(z) = ---------------------------------------
+           1 + A1*z^(-1) + A2*z^(-2)
+
+ */
+
+class ButterworthFilter {
+public:
+    
+//    Initialize the Butterworth filter coefficients based on the desired cutoff sampling frequencies
+    ButterworthFilter(double cutoff_freq, double sampling_freq) {
+        double cutoff_norm = cutoff_freq / sampling_freq;
+        double c = tan(M_PI * cutoff_norm);
+        
+//        Calculate the feedforward coefficients (B0, B1, B2) and feedback coefficients (A0, A1)
+        mB0 = 1.0 / (1.0 + sqrt(2.0) * c + pow(c, 2.0));
+        mB1 = -2.0 * mB0;
+        mB2 = mB0;
+        mA0 = 2.0 * mB0 * (pow(c, 2.0) - 1.0);
+        mA1 = mB0 * (1.0 - sqrt(2.0) * c + pow(c, 2.0));
+        mXnz1 = mXnz2 = mYnz1 = mYnz2 = 0.0;
+    }
+
+    void process_samples(double *wave, int length) {
+        for (int i = 0; i < length; i++) {
+            double x = wave[i];
+            
+//            Calculate the output sample using the filter difference equation and update values for the next iteration
+            double y = mB0 * x + mB1 * mXnz1 + mB2 * mXnz2 - mA0 * mYnz1 - mA1 * mYnz2;
+            mXnz2 = mXnz1;
+            mXnz1 = x;
+            mYnz2 = mYnz1;
+            mYnz1 = y;
+            wave[i] = y;
+        }
+    }
+    
+
+private:
+    double mB0, mB1, mB2, mA0, mA1;
+    double mXnz1, mXnz2, mYnz1, mYnz2;
 };
 
 //Wav File Data Definition
@@ -57,9 +105,8 @@ int main() {
     
     WAV_HEADER wavHeader;
     
-//    Define Sample Rate & Sine Wave Frequencies
+//    Define Sample Rate
     int sampleRate = 44100;
-    double frequency = 100;
     
 //    WAV Data Parameters Updated(Mono, 44.1 kHz)
     std::strncpy((char*)wavHeader.RIFF,"RIFF",4);
@@ -75,18 +122,25 @@ int main() {
     wavHeader.bitsPerSample=16;
     wavHeader.Subchunk2Size=sampleRate*2;
     std::strncpy((char*)wavHeader.Subchunk2ID,"data",4);
-    std::array<double, 44100> wave;
     
-//    Declare Amount of Harmonics of Sine
-    int nHarmonics = 20;
-    double Nyquist = 44100 / 2;
+//    Declare Signal Frequency and amount of harmonics of sine and Nyquist
+    double frequency = 300;
+    int nHarmonics = 10;
+    double Nyquist = sampleRate / 2;
+    
+//    Declare Amplitude and Phase of the Signal
+    double amplitude = 0.4;
+    double phase = 0.3;
     std::vector<SineOsc> oscillators;
     for(int i = 0; i < nHarmonics; i++){
-//        Call the SineOsc Class(Fs=44.1kHz, Amplitude=0.5, Phase = -π/2)
-        oscillators.push_back(SineOsc(44100, 0.5, -M_PI / 2));
+//        Call the SineOsc Class
+        oscillators.push_back(SineOsc(sampleRate, amplitude, phase));
     }
-    for(int i = 0; i < 44100; i++){
-        wave[i] = 0;
+    
+    std::array<double, 44100> wave = { 0.0 };
+    int N = wave.size();
+    for(int i = 0; i < N; i++){
+        wave[i] = 0.0;
         for(int j = 1; j < nHarmonics; j ++){
             int h = 2 * j - 1;
             if((h * frequency) < Nyquist){
@@ -96,33 +150,38 @@ int main() {
         }
     }
     
-//    WAV File Creation
-    FILE* fptr;
-    fptr = fopen("sine_100_0.5_0.3_out.wav", "wb");
-    fwrite(&wavHeader, sizeof(wavHeader), 1, fptr);
+    //    Unfiltered WAV File Creation
+        FILE* fptr;
+        fptr = fopen("Orginal_Sine_Wave.wav", "wb");
+        fwrite(&wavHeader, sizeof(wavHeader), 1, fptr);
+        for (int i = 0; i < 44100; i++) {
+            int value = (int)(32767 * wave[i]);
+            int size = 2;
+                for (; size; --size, value >>= 8) {
+                    fwrite(&value, 1, 1, fptr);
+                }
+        }
+        fclose(fptr);
+    
+//    Apply Filter with 3kHz Cut-off Frequency
+    ButterworthFilter filter(3000.0, 44100.0);
+    int length_bytes = sizeof(wave);
+    int length_samples = length_bytes / sizeof(double);
+    filter.process_samples(wave.data(), length_samples);
+    
+//    Filtered WAV File Creation
+    FILE* fptr_filtered;
+    fptr_filtered = fopen("Filtered_Sine_Wave.wav", "wb");
+    fwrite(&wavHeader, sizeof(wavHeader), 1, fptr_filtered);
     for (int i = 0; i < 44100; i++) {
         int value = (int)(32767 * wave[i]);
         int size = 2;
             for (; size; --size, value >>= 8) {
-                fwrite(&value, 1, 1, fptr);
+                fwrite(&value, 1, 1, fptr_filtered);
             }
     }
-    fclose(fptr);
+    fclose(fptr_filtered);
     
-//    cout final data parameters
-    cout<<"RIFF[4]:        "<<wavHeader.RIFF<<endl;
-    cout<<"Chunksize:      "<<wavHeader.ChunkSize<<endl;
-    cout<<"WAVE[4]:        "<<wavHeader.WAVE<<endl;
-    cout<<"fmt[4]:         "<<wavHeader.fmt<<endl;
-    cout<<"Subchunk1Size:  "<<wavHeader.Subchunk1Size<<endl;
-    cout<<"AudioFormat:    "<<wavHeader.AudioFormat<<endl;
-    cout<<"NumOfChan:      "<<wavHeader.NumOfChan<<endl;
-    cout<<"SamplesPerSec:  "<<wavHeader.SamplesPerSec<<endl;
-    cout<<"bytesPerSec:    "<<wavHeader.bytesPerSec<<endl;
-    cout<<"blockAlign:     "<<wavHeader.blockAlign<<endl;
-    cout<<"bitsPerSample:  "<<wavHeader.bitsPerSample<<endl;
-    cout<<"Subchunk2ID[4]: "<<wavHeader.Subchunk2ID<<endl;
-    cout<<"Subchunk2Size:  "<<wavHeader.Subchunk2Size<<endl;
     
     return 0;
 }
