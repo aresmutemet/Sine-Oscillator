@@ -25,6 +25,7 @@
 /* Begin PBXFileReference section */
 		F706DD552B8F407B00A97613 /* Sine Oscillator */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "Sine Oscillator"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F706DD582B8F407B00A97613 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
+		F706DD5F2B8F45B800A97613 /* sine_100_0.5_0.3_out.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = sine_100_0.5_0.3_out.wav; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,6 +58,7 @@
 		F706DD572B8F407B00A97613 /* Sine Oscillator */ = {
 			isa = PBXGroup;
 			children = (
+				F706DD5F2B8F45B800A97613 /* sine_100_0.5_0.3_out.wav */,
 				F706DD582B8F407B00A97613 /* main.cpp */,
 			);
 			path = "Sine Oscillator";
